@@ -1,0 +1,8 @@
+node_modules
+bun.lockb
+.bunx
+npm-debug.log
+dist
+.git
+.gitignore
+README.md

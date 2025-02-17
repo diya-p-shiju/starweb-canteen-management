@@ -1,0 +1,38 @@
+# Docker Compose configuration
+# ./docker-compose.yml
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  backend:
+    build: 
+      context: ./canteen-project-api
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongodb
+
+  frontend:
+    build:
+      context: ./personal-frontend
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  mongodb_data:

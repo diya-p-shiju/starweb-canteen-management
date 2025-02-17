@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Coffee, Menu, X, User } from 'lucide-react';
+import axios from 'axios';
 
 interface NavbarProps {
   items: { label: string; link: string }[];
@@ -11,24 +12,49 @@ interface UserDetails {
   email: string;
   role: string;
   userCategory?: string;
-  credits?: string;
+  credits?: number;
+  _id: string;
 }
 
 const Navbar: React.FC<NavbarProps> = ({ items, onLabelClick }) => {
   const [selected, setSelected] = useState('Menu');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  const fetchUserDetails = async () => {
+    try {
+      const userId = localStorage.getItem('_id');
+      if (!userId) {
+        throw new Error('User ID not found');
+      }
+
+      const response = await axios.get(`http://localhost:3000/user/${userId}`);
+      
+      if (response.data.status === 'success') {
+        setUserDetails(response.data.data);
+        setError(null);
+      } else {
+        throw new Error(response.data.message || 'Failed to fetch user details');
+      }
+    } catch (err: any) {
+      setError(err.message);
+      console.error('Error fetching user details:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial fetch
   useEffect(() => {
-    // Get user details from localStorage
-    const details: UserDetails = {
-      name: localStorage.getItem('name') || '',
-      email: localStorage.getItem('email') || '',
-      role: localStorage.getItem('role') || '',
-      userCategory: localStorage.getItem('userCategory') || '',
-      credits: localStorage.getItem('credits') || ''
-    };
-    setUserDetails(details);
+    fetchUserDetails();
+  }, []);
+
+  // Periodic refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(fetchUserDetails, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogout = () => {
@@ -38,7 +64,7 @@ const Navbar: React.FC<NavbarProps> = ({ items, onLabelClick }) => {
 
   return (
     <>
-      {/* Mobile Menu Button - Only visible on small screens */}
+      {/* Mobile Menu Button */}
       <div className="lg:hidden fixed top-4 left-4 z-50">
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -77,6 +103,7 @@ const Navbar: React.FC<NavbarProps> = ({ items, onLabelClick }) => {
                 setSelected(item.label);
                 onLabelClick(item.label);
                 setIsMobileMenuOpen(false);
+                fetchUserDetails(); // Refresh data when changing views
               }}
               className={`flex items-center px-4 py-2 mx-2 rounded-lg transition-colors duration-200
                 ${selected === item.label
@@ -91,46 +118,62 @@ const Navbar: React.FC<NavbarProps> = ({ items, onLabelClick }) => {
           {/* User Details Card */}
           <div className="mt-auto px-4 mb-4">
             <div className="p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center space-x-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center">
-                  <User className="w-6 h-6 text-teal-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {userDetails?.name}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">
-                    {userDetails?.email}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-xs text-gray-500">Role</span>
-                  <span className="text-xs font-medium text-gray-900 capitalize">
-                    {userDetails?.role}
-                  </span>
-                </div>
-                
-                {userDetails?.userCategory && (
-                  <div className="flex justify-between">
-                    <span className="text-xs text-gray-500">Category</span>
-                    <span className="text-xs font-medium text-gray-900 capitalize">
-                      {userDetails.userCategory.replace('_', ' ')}
-                    </span>
+              {loading ? (
+                <div className="text-center text-gray-500">Loading...</div>
+              ) : error ? (
+                <div className="text-center text-red-500 text-sm">{error}</div>
+              ) : userDetails && (
+                <>
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center">
+                      <User className="w-6 h-6 text-teal-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {userDetails.name}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {userDetails.email}
+                      </p>
+                    </div>
                   </div>
-                )}
-                
-                {userDetails?.credits && (
-                  <div className="flex justify-between">
-                    <span className="text-xs text-gray-500">Credits</span>
-                    <span className="text-xs font-medium text-gray-900">
-                      ₹{userDetails.credits}
-                    </span>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-xs text-gray-500">Role</span>
+                      <span className="text-xs font-medium text-gray-900 capitalize">
+                        {userDetails.role}
+                      </span>
+                    </div>
+                    
+                    {userDetails.userCategory && (
+                      <div className="flex justify-between">
+                        <span className="text-xs text-gray-500">Category</span>
+                        <span className="text-xs font-medium text-gray-900 capitalize">
+                          {userDetails.userCategory.replace('_', ' ')}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {userDetails.credits !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-xs text-gray-500">Credits</span>
+                        <span className="text-xs font-medium text-gray-900">
+                          ₹{userDetails.credits.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Refresh button for debugging */}
+                    <button 
+                      onClick={fetchUserDetails}
+                      className="text-xs text-teal-600 hover:text-teal-700 mt-2"
+                    >
+                      Refresh
+                    </button>
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
 
             {/* Logout Button */}

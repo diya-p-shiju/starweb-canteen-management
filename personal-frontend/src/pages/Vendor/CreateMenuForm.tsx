@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Trash2, Plus } from 'lucide-react';
 
 const MenuForm = () => {
-  const [items, setItems] = useState([{ name: '', price: '', description: '' }]);
+  const [items, setItems] = useState([{ name: '', price: '', description: '', available: true }]);
   const [status, setStatus] = useState({ type: '', message: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
@@ -28,7 +28,8 @@ const MenuForm = () => {
           const menu = response.data.data[0];
           setItems(menu.items.map(item => ({
             ...item,
-            price: item.price.toString()
+            price: item.price.toString(),
+            available: item.available || false
           })));
         }
       } catch (error) {
@@ -48,7 +49,7 @@ const MenuForm = () => {
   }, []);
 
   const addItem = () => {
-    setItems([...items, { name: '', price: '', description: '' }]);
+    setItems([...items, { name: '', price: '', description: '', available: true }]);
   };
 
   const removeItem = (index) => {
@@ -210,6 +211,22 @@ const MenuForm = () => {
                     </div>
                     <div className="sm:col-span-2 space-y-2">
                       <label className="block text-sm font-medium text-gray-700">
+                        Availability
+                      </label>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={item.available}
+                          onChange={(e) => updateItem(index, 'available', e.target.checked)}
+                          className="w-4 h-4 text-teal-500 border-2 border-gray-200 rounded focus:ring-2 focus:ring-teal-500"
+                        />
+                        <span className="ml-2 text-sm text-gray-700">
+                          {item.available ? 'Available' : 'Not Available'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="sm:col-span-2 space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">
                         Description
                       </label>
                       <textarea
@@ -266,7 +283,3 @@ const MenuForm = () => {
 };
 
 export default MenuForm;
-
-function setError(arg0: string) {
-  throw new Error('Function not implemented.');
-}

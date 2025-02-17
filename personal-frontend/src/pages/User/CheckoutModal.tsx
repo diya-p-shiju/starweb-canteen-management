@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { X } from 'lucide-react';
 
@@ -15,7 +15,14 @@ interface CartItem {
   name: string;
   price: number;
   quantity: number;
-  calories: string;  // Add this
+  calories: string;
+}
+
+interface UserData {
+  credits: number;
+  name: string;
+  email: string;
+  mobileNumber: string;
 }
 
 const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -27,38 +34,47 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  if (!isOpen) return null;
+  const [userData, setUserData] = useState<UserData | null>(null);
+  
+  const baseUrl = 'http://localhost:3000';
+  const userId = localStorage.getItem('_id') || '';
 
   const totalAmount = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  
-  // Get user details from localStorage
-  const userId = localStorage.getItem('_id') || '';
-  const name = localStorage.getItem('name') || '';
-  const email = localStorage.getItem('email') || '';
-  const mobileNumber = localStorage.getItem('mobileNumber') || '';
-  const credits = parseFloat(localStorage.getItem('credits') || '0');
 
-  const updateUserCredits = async (newCredits: number) => {
+  // Fetch fresh user data
+  const fetchUserData = async () => {
     try {
-      const response = await axios.put(`http://localhost:3000/user/${userId}`, {
-        credits: newCredits
-      });
-
+      const response = await axios.get(`${baseUrl}/user/${userId}`);
+      
       if (response.data.status === 'success') {
-        // Update credits in localStorage
-        localStorage.setItem('credits', newCredits.toString());
-        return true;
+        const { credits, name, email, mobileNumber } = response.data.data;
+        setUserData({ credits, name, email, mobileNumber });
+        setError(null);
+      } else {
+        throw new Error('Failed to fetch user data');
       }
-      return false;
-    } catch (error) {
-      console.error('Error updating user credits:', error);
-      return false;
+    } catch (err: any) {
+      console.error('Error fetching user data:', err);
+      setError('Failed to fetch user data. Please try again.');
     }
   };
 
+  // Fetch user data when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchUserData();
+    }
+  }, [isOpen]);
+
+  if (!isOpen || !userData) return null;
+
   const handleCheckout = async () => {
-    if (credits < totalAmount) {
+    if (!userData.name || !userData.email || !userData.mobileNumber) {
+      setError('Missing user information. Please log in again.');
+      return;
+    }
+
+    if (userData.credits < totalAmount) {
       setError('Insufficient credits. Please recharge your account.');
       return;
     }
@@ -67,22 +83,13 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setError(null);
 
     try {
-      // First, try to update user credits
-      const newCredits = credits - totalAmount;
-      const creditUpdateSuccess = await updateUserCredits(newCredits);
-
-      if (!creditUpdateSuccess) {
-        throw new Error('Failed to update credits. Please try again.');
-      }
-
-      // Updated menuItems structure to match the schema
       const menuItems = cartItems.map(item => ({
-        menuItemId: item._id,  // Changed from itemId to menuItemId
-        calories: item.calories || "N/A",  // Add this to CartItem interface if not present
+        menuItemId: item._id,
+        calories: item.calories || "N/A",
         name: item.name,
         price: item.price,
         quantity: item.quantity,
-        totalPrice: item.price * item.quantity  // Added totalPrice calculation
+        totalPrice: item.price * item.quantity
       }));
 
       const orderData = {
@@ -91,37 +98,36 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         menuItems,
         totalAmount,
         deliveryTime: new Date(Date.now() + 30 * 60000),
-        name,
-        email,
-        mobileNumber
+        name: userData.name,
+        email: userData.email,
+        mobileNumber: userData.mobileNumber,
+        status: 'pending',
+        paymentStatus: 'paid'
       };
 
-      console.log('Sending order data:', orderData); // Add this for debugging
+      console.log('Sending order data:', JSON.stringify(orderData, null, 2));
 
-      const response = await axios.post('http://localhost:3000/order', orderData);
+      const response = await axios.post(`${baseUrl}/order`, orderData, {
+        headers: { 'Content-Type': 'application/json' }
+      });
 
       if (response.data.status === 'success') {
+        // Fetch fresh user data after successful order
+        await fetchUserData();
         onOrderSuccess();
         onClose();
       } else {
-        // If order creation fails, revert the credit deduction
-        await updateUserCredits(credits);
-        throw new Error('Failed to create order');
+        throw new Error(response.data.message || 'Failed to create order');
       }
     } catch (err: any) {
-      console.error('Order error:', err); // Add this for debugging
-      // Revert credits if they were deducted but order failed
-      if (err.message !== 'Failed to update credits. Please try again.') {
-        await updateUserCredits(credits);
-      }
-      setError(err.message || 'Failed to place order. Please try again.');
+      console.error('Order error:', err.response || err);
+      setError(err.response?.data?.message || err.message || 'Failed to place order. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleRechargeClick = () => {
-    // You can replace this with navigation to recharge page
     alert('Please navigate to the recharge page to add more credits.');
   };
 
@@ -158,22 +164,23 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div className="border-t pt-4">
               <div className="flex justify-between items-center mb-2">
                 <span className="font-medium">Your Credits:</span>
-                <span className={`font-medium ${credits < totalAmount ? 'text-red-600' : 'text-green-600'}`}>
-                  ₹{credits.toFixed(2)}
+                <span className={`font-medium ${userData.credits < totalAmount ? 'text-red-600' : 'text-green-600'}`}>
+                  ₹{userData.credits.toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between items-center text-lg font-semibold">
                 <span>Total Amount:</span>
                 <span>₹{totalAmount.toFixed(2)}</span>
               </div>
-              {credits < totalAmount && (
+              {userData.credits < totalAmount && (
                 <div className="mt-2">
-                    <button
-                    onClick={handleRechargeClick}
-                    className="w-full py-2 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700 transition-colors"
-                    >
-                    Recharge Credits
-                    </button>
+                  <h1
+                    
+                    className="w-full py-2 text-red-700 rounded-lg font-medium  transition-colors"
+                    
+                  >
+                    Please Recharge Credits
+                 </h1>
                 </div>
               )}
             </div>
@@ -187,16 +194,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         </div>
 
         <div className="p-4 border-t">
-            <button
+          <button
             onClick={handleCheckout}
-            disabled={isLoading || credits < totalAmount}
+            disabled={isLoading || userData.credits < totalAmount}
             className={`w-full py-3 text-white rounded-lg font-medium transition-colors 
-              ${isLoading || credits < totalAmount 
-              ? 'bg-gray-300 cursor-not-allowed'
-              : 'bg-teal-600 hover:bg-teal-700'}`}
-            >
+              ${isLoading || userData.credits < totalAmount 
+                ? 'bg-gray-300 cursor-not-allowed'
+                : 'bg-teal-600 hover:bg-teal-700'}`}
+          >
             {isLoading ? 'Processing...' : 'Confirm Order'}
-            </button>
+          </button>
         </div>
       </div>
     </div>

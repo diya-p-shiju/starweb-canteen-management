@@ -74,8 +74,9 @@ const App = () => {
               </PublicRoute>
             } 
           />
-            <Route path="/payment-success" element={<PaymentSuccess />} />
-            <Route path="/payment-cancelled" element={<PaymentCancelled />} />
+           // In your router configuration
+           <Route path="/payment/:status" element={<PaymentSuccess />} />
+            {/* <Route path="/payment/cancel" element={<PaymentCancelled />} /> */}
           
           <Route
             path="/vendor"

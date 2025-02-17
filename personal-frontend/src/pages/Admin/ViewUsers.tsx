@@ -192,7 +192,7 @@ const UsersTable = () => {
                     <button
                       onClick={() => handleDeleteUser(user._id)}
                       className="text-red-600 hover:text-red-900 transition-colors"
-                    >{user._id}
+                    >
                       <Trash2 className="w-5 h-5" />
                     </button>
                   </td>

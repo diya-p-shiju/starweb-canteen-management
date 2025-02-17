@@ -1,38 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { Coffee } from 'lucide-react';
 import LoginForm from './Loginform';
 import SignupForm from './SignupForm';
-import { Coffee } from 'lucide-react';
+import cafeImage from '../../assets/cafe.jpeg'; // Adjust the path based on your project structure
+
+const MemoizedLoginForm = React.memo(LoginForm);
+const MemoizedSignupForm = React.memo(SignupForm);
 
 const LoginPage = () => {
   const [isLogin, setIsLogin] = useState(true);
 
+  const toggleForm = useCallback(() => {
+    setIsLogin((prevIsLogin) => !prevIsLogin);
+  }, []);
+
   return (
-    <div className="h-screen w-screen overflow-auto bg-gradient-to-br from-teal-50 to-teal-100 flex items-center justify-center">
-      <div className="w-full h-full md:h-auto md:max-h-[90vh] md:w-auto max-w-4xl bg-white md:rounded-3xl shadow-xl overflow-auto">
-        <div className="p-6 md:p-8">
-          {/* Logo */}
-          <div className="flex items-center gap-3 mb-6">
-          <div className="rounded-lg bg-teal-500 p-1">
+    <div 
+      className="min-h-screen w-full bg-cover bg-center flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
+      style={{ backgroundImage: `url(${cafeImage})` }}
+    >
+      <div className="w-full max-w-md space-y-8 bg-white bg-opacity-90 p-10 rounded-xl shadow-md">
+        {/* Logo */}
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <div className="rounded-lg bg-teal-500 p-2">
             <Coffee className="w-6 h-6 text-white" />
           </div>
-            <span className="text-xl font-semibold text-gray-800">CAFETERIA CONNECT</span>
-          </div>
+          <span className="text-2xl font-bold text-gray-800">CAFETERIA CONNECT</span>
+        </div>
 
+        {/* Forms Container */}
+        <div className="w-full">
+          {isLogin ? <MemoizedLoginForm /> : <MemoizedSignupForm />}
+        </div>
 
-          {/* Forms Container */}
-          <div className="w-full">
-            {isLogin ? <LoginForm /> : <SignupForm />}
-          </div>
-
-          {/* Toggle Link */}
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-base text-gray-600 hover:text-teal-500 transition-colors"
-            >
-              {isLogin ? 'Not a user? Sign up' : 'Already have an account? Log in'}
-            </button>
-          </div>
+        {/* Toggle Link */}
+        <div className="mt-6 text-center">
+          <button
+            onClick={toggleForm}
+            className="text-sm text-teal-600 hover:text-teal-500 font-medium transition-colors"
+          >
+            {isLogin ? 'Not a user? Sign up' : 'Already have an account? Log in'}
+          </button>
         </div>
       </div>
     </div>

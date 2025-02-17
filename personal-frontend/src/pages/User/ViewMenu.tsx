@@ -179,7 +179,7 @@ const MenuCards = () => {
           {allItems.map((item) => (
             <div
               key={item._id}
-              className="bg-white rounded-lg shadow-md overflow-hidden"
+              className={`bg-white rounded-lg shadow-md overflow-hidden ${!item.availability ? 'opacity-50' : ''}`}
             >
               <div className="h-40 bg-gray-200">
                 <img
@@ -207,19 +207,13 @@ const MenuCards = () => {
                   </span>
                 </div>
                 <div className="flex items-center justify-between mt-4">
-                  {item.availability ? (
-                    <button
-                      onClick={() => updateCart(item, 1)}
-                      disabled={cartItems.find(cartItem => cartItem._id === item._id)?.quantity >= item.maxOrderQuantity}
-                      className="w-full px-4 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors disabled:bg-gray-300"
-                    >
-                      Add to Cart
-                    </button>
-                  ) : (
-                    <span className="w-full px-4 py-2 text-center rounded-lg bg-gray-100 text-gray-500">
-                      Not Available
-                    </span>
-                  )}
+                  <button
+                    onClick={() => updateCart(item, 1)}
+                    disabled={!item.availability || cartItems.find(cartItem => cartItem._id === item._id)?.quantity >= item.maxOrderQuantity}
+                    className="w-full px-4 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    {item.availability ? 'Add to Cart' : 'Not Available'}
+                  </button>
                 </div>
               </div>
             </div>

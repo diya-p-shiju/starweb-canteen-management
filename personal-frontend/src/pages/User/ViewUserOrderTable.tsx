@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { AlertCircle, X, RefreshCcw, Star } from 'lucide-react';
 import axios from 'axios';
 
+interface MenuItem {
+  id: string;
+  name: string;
+  quantity: number;
+}
+
 interface Order {
   _id: string;
   userId: string;
@@ -9,20 +15,27 @@ interface Order {
   totalAmount: number;
   status: string;
   vendorId: string;
+  createdAt: string;
 }
 
 interface Review {
   _id: string;
   userId: string;
-  vendorId: string;
-  reviewItem: {
-    menuItemId: string;
-    score: number;
-    description: string;
+  orderId: string;
+  orderDate: string;
+  menuItem: {
+    id: string;
+    name: string;
+    quantity: number;
   };
-  name: string;
-  email: string;
-  mobileNumber: string;
+  vendorId: string;
+  vendorName: string;
+  rating: number;
+  comment: string;
+  reviewerName: string;
+  reviewerEmail: string;
+  reviewerMobile: string;
+  createdAt: string;
 }
 
 interface UpdateStatus {
@@ -66,12 +79,15 @@ const UserOrdersTable = () => {
   });
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<{
-    vendorId: string;
-    menuItemId: string;
+    orderId: string;
+    menuItem: {
+      id: string;
+      name: string;
+      quantity: number;
+    };
   } | null>(null);
   const [rating, setRating] = useState(0);
 
-  // Keep all the existing functionality unchanged...
   const userId = localStorage.getItem('_id');
   const userName = localStorage.getItem('name');
   const userEmail = localStorage.getItem('email');
@@ -79,7 +95,6 @@ const UserOrdersTable = () => {
   
   const baseUrl = 'http://localhost:3000';
 
-  // Existing functions remain unchanged...
   const fetchOrders = async () => {
     try {
       setLoading(true);
@@ -88,7 +103,6 @@ const UserOrdersTable = () => {
       
       if (result.status === 'success') {
         const userOrders = result.data.filter((order: Order) => order.userId === userId);
-        console.log(result.data)
         setOrders(userOrders);
         setError(null);
       } else {
@@ -103,50 +117,48 @@ const UserOrdersTable = () => {
 
   const fetchReviews = async () => {
     try {
-      const response = await axios.get(`${baseUrl}/review`);
-      const result = response.data;
+      const response = await axios.get(`${baseUrl}/review`, {
+        params: { userId }
+      });
       
-      if (result.status === 'success') {
-        const userReviews = result.data.filter((review: Review) => review.userId === userId);
-        setReviews(userReviews);
+      if (response.data.status === 'success') {
+        setReviews(response.data.data);
       }
     } catch (err) {
       console.error('Failed to fetch reviews:', err);
     }
   };
 
-  const submitReview = async (menuItemId: string, score: number, description: string) => {
+  const submitReview = async (comment: string) => {
     if (!selectedOrder) return;
 
     try {
       const reviewData = {
         userId,
-        vendorId: selectedOrder.vendorId,
-        reviewItem: {
-          menuItemId,
-          score,
-          description,
-        },
-        name: userName,
-        email: userEmail,
-        mobileNumber: userMobile,
+        orderId: selectedOrder.orderId,
+        menuItem: selectedOrder.menuItem,
+        rating,
+        comment,
+        reviewerName: userName,
+        reviewerEmail: userEmail,
+        reviewerMobile: userMobile,
       };
 
       const response = await axios.post(`${baseUrl}/review`, reviewData);
       
       if (response.data.status === 'success') {
+        await fetchReviews();
         setUpdateStatus({
           show: true,
           message: 'Review submitted successfully.',
           type: 'success'
         });
         setShowReviewModal(false);
-        fetchReviews();
       }
-    } catch (err) {
+    } catch (err: any) {
       setUpdateStatus({
         show: true,
-        message: 'Failed to submit review. Please try again.',
+        message: err.response?.data?.message || 'Failed to submit review. Please try again.',
         type: 'error'
       });
     }
@@ -192,10 +204,10 @@ const UserOrdersTable = () => {
     );
   }
 
-  const getReviewForMenuItem = (vendorId: string, menuItemId: string) => {
+  const getReviewForOrderItem = (orderId: string, menuItemId: string) => {
     return reviews.find(review => 
-      review.vendorId === vendorId && 
-      review.reviewItem.menuItemId === menuItemId
+      review.orderId === orderId && 
+      review.menuItem.id === menuItemId
     );
   };
 
@@ -221,6 +233,9 @@ const UserOrdersTable = () => {
                   Order ID
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-teal-700 uppercase tracking-wider">
+                  Order Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-teal-700 uppercase tracking-wider">
                   Items
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-teal-700 uppercase tracking-wider">
@@ -230,7 +245,7 @@ const UserOrdersTable = () => {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-teal-700 uppercase tracking-wider">
-                  Review
+                  Reviews
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-teal-700 uppercase tracking-wider">
                   Actions
@@ -243,10 +258,13 @@ const UserOrdersTable = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     #{order._id.slice(-6)}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(order.createdAt).toLocaleDateString()}
+                  </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900">
                       {order.menuItems.map((item, index) => (
-                        <div key={index} className="mb-1">
+                        <div key={index} className="mb-2">
                           {item.name} × {item.quantity}
                         </div>
                       ))}
@@ -267,39 +285,44 @@ const UserOrdersTable = () => {
                   </td>
                   <td className="px-6 py-4">
                     {order.menuItems.map((item, index) => {
-                      const review = getReviewForMenuItem(order.vendorId, item.menuItemId);
+                      const review = getReviewForOrderItem(order._id, item.menuItemId);
                       return (
-                        <div key={index} className="mb-2">
+                        <div key={index} className="mb-3 last:mb-0">
                           {review ? (
-                            <div className="text-sm">
-                              <div className="flex items-center gap-1">
+                            <div className="bg-gray-50 rounded-lg p-2">
+                              <div className="flex items-center gap-1 mb-1">
                                 {[...Array(5)].map((_, i) => (
                                   <Star
                                     key={i}
                                     className={`w-4 h-4 ${
-                                      i < review.reviewItem.score
+                                      i < review.rating
                                         ? 'fill-teal-500 text-teal-500'
                                         : 'fill-gray-200 text-gray-200'
                                     }`}
                                   />
                                 ))}
                               </div>
-                              <div className="text-gray-500 mt-1">{review.reviewItem.description}</div>
+                              <div className="text-gray-600 text-sm">{review.comment}</div>
                             </div>
                           ) : (
                             order.status === 'completed' && (
                               <button
                                 onClick={() => {
                                   setSelectedOrder({
-                                    vendorId: order.vendorId,
-                                    menuItemId: item.menuItemId
+                                    orderId: order._id,
+                                    menuItem: {
+                                      id: item.menuItemId,
+                                      name: item.name,
+                                      quantity: item.quantity
+                                    }
                                   });
                                   setShowReviewModal(true);
                                   setRating(0);
                                 }}
-                                className="text-teal-600 hover:text-teal-800 text-sm"
+                                className="inline-flex items-center text-teal-600 hover:text-teal-800 text-sm bg-teal-50 px-3 py-1 rounded-md"
                               >
-                                Add Review
+                                <Star className="w-4 h-4 mr-1" />
+                                Review {item.name}
                               </button>
                             )
                           )}
@@ -330,7 +353,7 @@ const UserOrdersTable = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Write a Review</h2>
+              <h2 className="text-xl font-bold text-gray-900">Review for {selectedOrder.menuItem.name}</h2>
               <button
                 onClick={() => setShowReviewModal(false)}
                 className="text-gray-500 hover:text-gray-700"
@@ -341,11 +364,7 @@ const UserOrdersTable = () => {
             <form onSubmit={(e) => {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
-              submitReview(
-                selectedOrder.menuItemId,
-                rating,
-                formData.get('description') as string
-              );
+              submitReview(formData.get('comment') as string);
             }}>
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -355,10 +374,10 @@ const UserOrdersTable = () => {
               </div>
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Review Description
+                  Your Review
                 </label>
                 <textarea
-                  name="description"
+                  name="comment"
                   required
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
                   rows={3}
@@ -368,6 +387,7 @@ const UserOrdersTable = () => {
               <button
                 type="submit"
                 className="w-full bg-teal-600 text-white py-3 px-4 rounded-lg hover:bg-teal-700 transition-colors focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+                disabled={rating === 0}
               >
                 Submit Review
               </button>

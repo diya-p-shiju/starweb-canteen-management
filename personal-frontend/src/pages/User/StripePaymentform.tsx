@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
-  CardElement,
   Elements,
   useStripe,
   useElements,
@@ -21,39 +20,61 @@ const PaymentFormContent = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-
-    const body = {
-      amount: amount * 100, // amount in paise
-      userId: localStorage.getItem('_id')
-    };
-    const headers = {
-      "Content-Type": "application/json",
-    };
-
-    const response = await fetch(`${API_URL}/create-checkout-session`, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(body)
-    });
-
-    const session = await response.json();
-
-    if (!stripe) {
-      console.error("Stripe has not loaded yet.");
-      setLoading(false);
+    
+    if (amount <= 0) {
+      alert('Please enter a valid amount');
       return;
     }
 
-    const result = await stripe.redirectToCheckout({
-      sessionId: session.id,
-    });
+    setLoading(true);
 
-    if (result.error) {
-      console.error(result.error.message);
+    try {
+      const userId = localStorage.getItem('_id');
+      if (!userId) {
+        throw new Error('User not logged in');
+      }
+
+      // Store the amount in localStorage for the success page
+      // Convert to rupees since we're sending paisa to the API
+      localStorage.setItem('stripeAmount', amount.toString());
+
+      const body = {
+        amount: amount * 100, // Convert to paisa
+        userId
+      };
+
+      const response = await fetch(`${API_URL}/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create checkout session');
+      }
+
+      const session = await response.json();
+
+      if (!stripe) {
+        throw new Error("Stripe has not loaded yet.");
+      }
+
+      const result = await stripe.redirectToCheckout({
+        sessionId: session.id,
+      });
+
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+    } catch (error) {
+      console.error('Payment error:', error);
+      alert(error.message || 'Payment failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -94,19 +115,22 @@ const PaymentFormContent = () => {
               type="number"
               value={amount || ''}
               onChange={(e) => setAmount(Number(e.target.value))}
+              min="1"
               className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               placeholder="Enter amount"
             />
           </div>
+          {amount > 0 && (
+            <p className="mt-2 text-sm text-gray-600">
+              You will receive ₹{amount.toLocaleString()} in credits
+            </p>
+          )}
         </div>
-
-        {/* Card Input */}
-       
 
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={!stripe || loading}
+          disabled={!stripe || loading || amount <= 0}
           onClick={handleSubmit}
           className="w-full bg-teal-500 text-white py-3 px-4 rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
@@ -119,7 +143,7 @@ const PaymentFormContent = () => {
               Processing...
             </span>
           ) : (
-            'Add Credits'
+            `Add ₹${amount.toLocaleString()} Credits`
           )}
         </button>
       </div>
